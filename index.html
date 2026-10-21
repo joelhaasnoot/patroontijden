@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patroontijden</title>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --surface: #ffffff;
+    --text: #1d1d1b;
+    --muted: #6b6a64;
+    --line: #e2e0d8;
+    --accent: #003082;      /* NS blue */
+    --accent-2: #ffc917;    /* NS yellow */
+    --row-hover: #f1efe6;
+    --night: #eef1f8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141414; --surface: #1e1e1e; --text: #ecebe6; --muted: #9b9a93;
+      --line: #333230; --accent: #8fb3ff; --accent-2: #ffc917; --row-hover: #272623; --night: #1d2230;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    background: var(--accent); color: #fff; padding: 14px 16px;
+    display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) header { background: #0b1d45; } }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .01em; }
+  header h1 span { color: var(--accent-2); }
+  .picker { position: relative; flex: 1 1 280px; max-width: 420px; }
+  .picker input {
+    width: 100%; padding: 8px 12px; border-radius: 6px; border: 0; font: inherit; font-size: 15px;
+    background: #fff; color: #1d1d1b;
+  }
+  .suggest {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 10; margin-top: 4px;
+    background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    max-height: 320px; overflow: auto; box-shadow: 0 6px 20px rgba(0,0,0,.15); display: none;
+  }
+  .suggest div { padding: 6px 12px; cursor: pointer; display: flex; justify-content: space-between; gap: 12px; }
+  .suggest div small { color: var(--muted); }
+  .suggest div.active, .suggest div:hover { background: var(--row-hover); }
+  .meta { font-size: 12px; opacity: .85; }
+  main { padding: 16px; max-width: 1280px; margin: 0 auto; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin-bottom: 12px; color: var(--muted); }
+  .toolbar label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .toolbar select, .toolbar button {
+    font: inherit; padding: 4px 8px; border-radius: 5px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--text); cursor: pointer;
+  }
+  .toolbar button:hover { border-color: var(--accent); }
+  h2.station { margin: 4px 0 2px; font-size: 22px; }
+  h2.station small { font-weight: 400; color: var(--muted); font-size: 14px; margin-left: 6px; }
+  section.dir { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin: 14px 0; overflow: hidden; }
+  section.dir > header {
+    background: none; color: var(--text); padding: 10px 14px 6px; display: flex; justify-content: space-between;
+    align-items: baseline; gap: 12px; border-bottom: 1px solid var(--line);
+  }
+  section.dir h3 { margin: 0; font-size: 15px; }
+  section.dir .dests { color: var(--muted); font-size: 12px; }
+  section.dir.night h3::before { content: "☾ "; }
+  .actions { display: flex; gap: 12px; align-items: center; flex-shrink: 0; }
+  .link { font-size: 12px; color: var(--accent); background: none; border: 0; cursor: pointer; padding: 0; white-space: nowrap; font: inherit; font-size: 12px; }
+  .actions select { font: inherit; font-size: 12px; padding: 2px 4px; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); max-width: 170px; }
+  .head { min-width: 0; flex: 1; }
+  h3.title { cursor: text; display: inline-block; border-bottom: 1px dashed transparent; }
+  h3.title:hover { border-bottom-color: var(--muted); }
+  h3.title[hidden] { display: none; }
+  h3.title::after { content: " ✎"; font-weight: 400; color: var(--muted); opacity: 0; font-size: 12px; }
+  h3.title:hover::after { opacity: 1; }
+  .editor { margin-bottom: 4px; }
+  .editor input { width: 100%; max-width: 640px; font: inherit; font-size: 15px; font-weight: 600; padding: 5px 8px;
+    border: 1px solid var(--accent); border-radius: 5px; background: var(--surface); color: var(--text); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .chip { font: inherit; font-size: 12px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--text); cursor: pointer; }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .editor .buttons { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .editor .buttons button { font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 5px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--text); cursor: pointer; }
+  .editor .buttons .save { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .editor .hint { font-size: 11px; color: var(--muted); }
+  .moved { color: var(--accent); font-weight: 400; }
+  tr.detail .move { display: inline-flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
+  tr.detail .move select { font: inherit; font-size: 12px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--text); }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 5px 10px; vertical-align: top; border-bottom: 1px solid var(--line); }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--bg); }
+  tbody tr.main { cursor: pointer; }
+  tbody tr.main:hover > td { background: var(--row-hover); }
+  tbody tr.minor td { color: var(--muted); }
+  td.vertrek { font-weight: 600; white-space: nowrap; }
+  td.serie, td.spoor { white-space: nowrap; }
+  tbody tr.main:not(.last) > td.dest, tbody tr.main:not(.last) > td.opm { border-bottom: 0; padding-bottom: 1px; }
+  tbody tr.sub > td { padding-top: 1px; }
+  td.dest { white-space: nowrap; }
+  td.opm { color: var(--muted); min-width: 260px; }
+  .badge { display: inline-block; font-size: 11px; padding: 0 5px; border-radius: 3px; background: var(--accent-2); color: #1d1d1b; margin-left: 4px; }
+  tr.detail > td { background: var(--bg); padding: 14px 20px 18px; border-bottom: 1px solid var(--line); }
+  tr.detail .info { margin-bottom: 10px; color: var(--muted); }
+  tr.detail table { width: auto; margin-top: 10px; }
+  tr.detail table th, tr.detail table td { border: 0; padding: 2px 14px 2px 0; background: none; font-size: 12px; }
+  tr.detail table tr:first-child th { padding-bottom: 4px; }
+  .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 24px; }
+  @media (max-width: 640px) {
+    main { padding: 12px 16px; }
+    th, td { padding: 4px 6px; }
+    td.opm { min-width: 180px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Patroon<span>tijden</span></h1>
+  <div class="picker">
+    <input id="q" type="search" placeholder="Kies een station… (naam of code)" autocomplete="off" spellcheck="false">
+    <div class="suggest" id="suggest"></div>
+  </div>
+  <div class="meta" id="meta"></div>
+</header>
+<main>
+  <div class="toolbar">
+    <label>Groeperen
+      <select id="depth">
+        <option value="1">per richting</option>
+        <option value="2">per richting + aftakking</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="minor"> randuren (losse vroege/late treinen)</label>
+    <label><input type="checkbox" id="intl"> internationaal ook apart</label>
+    <label>Kopiëren als
+      <select id="format">
+        <option value="wiki">Wikitekst</option>
+        <option value="markdown">Markdown</option>
+        <option value="tsv">Tekst (tabs)</option>
+      </select>
+    </label>
+    <button id="copyAll" type="button">Kopieer alles</button>
+    <button id="resetCustom" type="button" hidden>Aanpassingen wissen</button>
+  </div>
+  <div id="out"><div class="empty">Kies een station om de vertrekpatronen te zien.</div></div>
+  <p class="note">
+    Gegenereerd uit de OVapi GTFS-feed (gtfs.ovapi.nl). Per weekdag tellen alleen vertrekken mee die op
+    de meerderheid van die weekdagen in de referentieperiode rijden; werkzaamheden en losse extra's vallen zo weg. Klik op een regel voor alle vertrektijden of om hem naar een andere
+    richting te verplaatsen; klik op een kop om hem te hernoemen. Aanpassingen worden in deze browser bewaard.
+  </p>
+</main>
+<script>
+const DAYS = ["ma", "di", "wo", "do", "vr", "za", "zo"];
+const state = { index: null, station: null, custom: null, opts: loadOpts() };
+
+function loadOpts() {
+  const defaults = { depth: "1", minor: false, intl: false, format: "wiki" };
+  try { return Object.assign(defaults, JSON.parse(localStorage.getItem("pt-opts") || "{}")); }
+  catch { return defaults; }
+}
+function saveOpts() { try { localStorage.setItem("pt-opts", JSON.stringify(state.opts)); } catch {} }
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const norm = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+async function init() {
+  state.index = await fetch("data/index.json", { cache: "no-cache" }).then((r) => r.json());
+  const ix = state.index;
+  const weeks = ix.weeks || 1;
+  $("meta").textContent = `${weeks > 1 ? `Meest voorkomend over ${weeks} weken` : "Referentieweek"} ${fmtDate(ix.week_start)} – ${fmtDate(ix.week_end)} · feed ${ix.feed_version} (${ix.feed_start.slice(6)}-${ix.feed_start.slice(4,6)} t/m ${ix.feed_end.slice(6)}-${ix.feed_end.slice(4,6)}-${ix.feed_end.slice(0,4)})`;
+  $("depth").value = state.opts.depth;
+  $("minor").checked = state.opts.minor;
+  $("intl").checked = state.opts.intl;
+  $("format").value = state.opts.format;
+  $("format").addEventListener("change", (e) => { state.opts.format = e.target.value; saveOpts(); });
+  for (const id of ["depth", "minor", "intl"]) {
+    $(id).addEventListener("change", (e) => {
+      state.opts[id] = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+      saveOpts();
+      render();
+    });
+  }
+  $("copyAll").addEventListener("click", () => copy(allText(), $("copyAll")));
+  $("resetCustom").addEventListener("click", () => {
+    if (!confirm(`Alle aangepaste namen, verplaatsingen en samenvoegingen voor ${state.station.name} wissen?`)) return;
+    state.custom = { titles: {}, moves: {}, merges: {}, created: {} };
+    saveCustom();
+  });
+  setupPicker();
+  window.addEventListener("hashchange", fromHash);
+  fromHash();
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso + "T12:00:00");
+  return d.toLocaleDateString("nl-NL", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+}
+
+function setupPicker() {
+  const q = $("q"), box = $("suggest");
+  let items = [], active = 0;
+  const show = () => {
+    const v = norm(q.value.trim());
+    if (!v) { box.style.display = "none"; return; }
+    const st = state.index.stations;
+    const starts = [], contains = [];
+    for (const s of st) {
+      const n = norm(s.name), c = s.code.toLowerCase();
+      if (c === v || n.startsWith(v) || n.split(/[\s-]/).some((w) => w.startsWith(v))) starts.push(s);
+      else if (n.includes(v)) contains.push(s);
+    }
+    starts.sort((a, b) => (b.code.toLowerCase() === v) - (a.code.toLowerCase() === v) || b.deps - a.deps);
+    items = starts.concat(contains).slice(0, 30);
+    active = 0;
+    box.innerHTML = items.map((s, i) =>
+      `<div data-i="${i}" class="${i === 0 ? "active" : ""}"><span>${esc(s.name)}</span><small>${esc(s.code)}</small></div>`).join("")
+      || `<div><small>Geen station gevonden</small></div>`;
+    box.style.display = "block";
+  };
+  const pick = (s) => { if (!s) return; box.style.display = "none"; q.value = s.name; q.blur(); location.hash = s.code; };
+  q.addEventListener("input", show);
+  q.addEventListener("focus", () => { q.select(); show(); });
+  q.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      active = (active + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      [...box.children].forEach((el, i) => el.classList.toggle("active", i === active));
+      box.children[active]?.scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") { pick(items[active]); }
+    else if (e.key === "Escape") { box.style.display = "none"; }
+  });
+  box.addEventListener("mousedown", (e) => {
+    const el = e.target.closest("[data-i]");
+    if (el) { e.preventDefault(); pick(items[+el.dataset.i]); }
+  });
+  document.addEventListener("click", (e) => { if (!e.target.closest(".picker")) box.style.display = "none"; });
+}
+
+async function fromHash() {
+  const code = decodeURIComponent(location.hash.slice(1));
+  if (!code) return;
+  const s = state.index.stations.find((x) => x.code === code);
+  if (!s) { $("out").innerHTML = `<div class="empty">Onbekend station “${esc(code)}”.</div>`; return; }
+  $("q").value = s.name;
+  $("out").innerHTML = `<div class="empty">Laden…</div>`;
+  state.station = await fetch(`data/stations/${encodeURIComponent(code)}.json`, { cache: "no-cache" }).then((r) => r.json());
+  state.custom = loadCustom(code);
+  render();
+}
+
+// ---- per-station customisation (stored in this browser) --------------------
+// titles: groupKey -> title, moves: rowId -> groupKey, merges: groupKey -> groupKey, created: groupKey -> title
+
+function loadCustom(code) {
+  const empty = { titles: {}, moves: {}, merges: {}, created: {} };
+  try { return Object.assign(empty, JSON.parse(localStorage.getItem("pt-custom:" + code) || "{}")); }
+  catch { return empty; }
+}
+function saveCustom() {
+  const c = state.custom, code = state.station.code;
+  const isEmpty = Object.values(c).every((o) => !Object.keys(o).length);
+  try {
+    if (isEmpty) localStorage.removeItem("pt-custom:" + code);
+    else localStorage.setItem("pt-custom:" + code, JSON.stringify(c));
+  } catch {}
+  render();
+}
+function hasCustom() { return Object.values(state.custom).some((o) => Object.keys(o).length); }
+const rowId = (r) => `${r.serie}|${r.vertrek}|${r.lines[0].dest}`;
+
+// ---- grouping -------------------------------------------------------------
+
+function groups() {
+  const st = state.station, depth = +state.opts.depth, c = state.custom;
+  const resolve = (k) => {
+    const seen = new Set();
+    while (c.merges[k] && !seen.has(k)) { seen.add(k); k = c.merges[k]; }
+    return k;
+  };
+  const autoTitles = {};
+  const byKey = new Map();
+  const add = (key, row) => {
+    if (!byKey.has(key)) byKey.set(key, { key, rows: [] });
+    byKey.get(key).rows.push(row);
+  };
+  for (const orig of st.rows) {
+    const r = state.opts.minor ? orig : Object.assign({}, orig, { lines: orig.lines.filter((l) => !l.minor) });
+    r.id = rowId(orig);
+    let auto, title;
+    if (r.night) { auto = "night"; title = "Nachtnet"; }
+    else {
+      const via = r.via.slice(0, depth);
+      auto = "d:" + via.join(">");
+      title = "Richting " + via.map((x) => st.names[x] || x).join(" – ");
+    }
+    autoTitles[auto] = title;
+    r.autoKey = auto;
+    if (!r.lines.length) continue;
+    add(resolve(c.moves[r.id] || auto), r);
+    if (state.opts.intl && r.intl && !r.night) {
+      const k = "intl:" + r.via[0];
+      autoTitles[k] = `Internationaal (richting ${st.names[r.via[0]] || r.via[0]})`;
+      add(resolve(k), r);
+    }
+  }
+  const count = (g) => g.rows.reduce((n, r) => n + r.count, 0);
+  const order = { dir: 0, intl: 1, night: 2 };
+  const gs = [...byKey.values()];
+  for (const g of gs) {
+    g.kind = g.key === "night" ? "night" : g.key.startsWith("intl:") ? "intl" : "dir";
+    g.autoTitle = c.created[g.key] || autoTitles[g.key] || g.key;
+    g.title = c.titles[g.key] || g.autoTitle;
+    g.custom = !!c.titles[g.key];
+    g.mergedFrom = Object.keys(c.merges).filter((k) => c.merges[k] === g.key);
+    g.rows.sort((a, b) => (a.sort[0] - b.sort[0]) || (a.sort[1] - b.sort[1]));
+  }
+  return gs.sort((a, b) => order[a.kind] - order[b.kind] || count(b) - count(a));
+}
+
+function destSummary(g) {
+  const c = new Map();
+  for (const r of g.rows) for (const l of r.lines) for (const d of l.dest.split(" / "))
+    c.set(d, (c.get(d) || 0) + Object.values(l.times).reduce((n, t) => n + t.length, 0));
+  return [...c.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map((e) => e[0]).join(" · ");
+}
+
+// stations along the route of a group, nearest first, for naming suggestions
+function routeSuggestions(g) {
+  const names = state.station.names, score = new Map();
+  for (const r of g.rows) {
+    (r.path || []).slice(0, 8).forEach((code, i) => {
+      const s = score.get(code) || { w: 0, pos: 0 };
+      s.w += r.count; s.pos += i * r.count;
+      score.set(code, s);
+    });
+  }
+  const total = g.rows.reduce((n, r) => n + r.count, 0);
+  const stations = [...score.entries()]
+    .filter(([, s]) => s.w >= total * 0.15)
+    .sort((a, b) => a[1].pos / a[1].w - b[1].pos / b[1].w)
+    .map(([code]) => names[code] || code);
+  const dests = destSummary(g).split(" · ");
+  return [...new Set([...stations.slice(0, 10), ...dests])].filter(Boolean);
+}
+
+// ---- rendering ------------------------------------------------------------
+
+function render() {
+  const st = state.station;
+  if (!st) return;
+  const gs = groups();
+  state.groups = gs;
+  $("resetCustom").hidden = !hasCustom();
+  let html = `<h2 class="station">${esc(st.name)}<small>${esc(st.code)}</small></h2>`;
+  if (!gs.length) html += `<div class="empty">Geen vertrekken in de referentieperiode.</div>`;
+  gs.forEach((g, gi) => {
+    const targets = gs.filter((o) => o !== g);
+    html += `<section class="dir ${g.kind}"><header><div class="head">
+      <h3 class="title" data-g="${gi}" title="Klik om de naam te wijzigen">${esc(g.title)}</h3>
+      <div class="dests">${esc(destSummary(g))}</div></div>
+      <div class="actions">
+        ${g.mergedFrom.length ? `<button class="link split" data-g="${gi}" type="button">splitsen</button>` : ""}
+        ${targets.length ? `<select class="merge" data-g="${gi}" title="Voeg deze tabel samen met een andere">
+          <option value="">samenvoegen met…</option>
+          ${targets.map((o) => `<option value="${esc(o.key)}">${esc(o.title)}</option>`).join("")}
+        </select>` : ""}
+        <button class="link copy" data-g="${gi}" type="button">kopieer</button>
+      </div></header>
+      <div class="scroll"><table><thead><tr>
+      <th>Vertrek</th><th>Serie</th><th>Bestemming</th><th>Spoor</th><th>Soort</th><th>Vervoerder</th><th>Opmerkingen</th>
+      </tr></thead><tbody>`;
+    g.rows.forEach((r, ri) => {
+      const minor = r.lines.every((l) => l.minor);
+      const moved = !!state.custom.moves[r.id];
+      const n = r.lines.length, rs = n > 1 ? ` rowspan="${n}"` : "";
+      r.lines.forEach((l, li) => {
+        const cls = `main${minor ? " minor" : ""}${li ? " sub" : ""}${li === n - 1 ? " last" : ""}`;
+        html += `<tr class="${cls}" data-g="${gi}" data-r="${ri}">` + (li ? "" : `
+          <td class="vertrek"${rs}>${esc(r.vertrek)}${moved ? ' <span class="moved" title="Handmatig verplaatst">↪</span>' : ""}</td>
+          <td class="serie"${rs}>${esc(r.serie)}</td>`) + `
+          <td class="dest">${esc(l.dest)}</td>` + (li ? "" : `
+          <td class="spoor"${rs}>${esc(r.spoor)}</td>
+          <td${rs}>${esc(r.soort)}</td>
+          <td${rs}>${esc(r.vervoerder)}</td>`) + `
+          <td class="opm">${esc(l.opm)}</td></tr>`;
+      });
+    });
+    html += `</tbody></table></div></section>`;
+  });
+  $("out").innerHTML = html;
+  const out = $("out");
+  out.querySelectorAll("button.copy").forEach((b) =>
+    b.addEventListener("click", () => copy(groupText(gs[+b.dataset.g]), b)));
+  out.querySelectorAll("h3.title").forEach((h) =>
+    h.addEventListener("click", () => editTitle(h, gs[+h.dataset.g])));
+  out.querySelectorAll("select.merge").forEach((s) => s.addEventListener("change", () => {
+    if (!s.value) return;
+    state.custom.merges[gs[+s.dataset.g].key] = s.value;
+    saveCustom();
+  }));
+  out.querySelectorAll("button.split").forEach((b) => b.addEventListener("click", () => {
+    const g = gs[+b.dataset.g];
+    for (const k of g.mergedFrom) delete state.custom.merges[k];
+    saveCustom();
+  }));
+  out.querySelectorAll("tr.main").forEach((tr) => tr.addEventListener("click", () => toggleDetail(tr)));
+}
+
+function editTitle(h3, g) {
+  const head = h3.parentElement;
+  if (head.querySelector(".editor")) return;
+  const chips = routeSuggestions(g);
+  const ed = document.createElement("div");
+  ed.className = "editor";
+  ed.innerHTML = `<input type="text" value="${esc(g.title)}" spellcheck="false">
+    <div class="chips">${chips.map((c) => `<button type="button" class="chip">${esc(c)}</button>`).join("")}</div>
+    <div class="buttons">
+      <button type="button" class="save">Opslaan</button>
+      <button type="button" class="auto" title="${esc(g.autoTitle)}">Automatisch</button>
+      <button type="button" class="cancel">Annuleer</button>
+      <span class="hint">Klik stations om de naam op te bouwen: eerste = richting, daarna “ - ” en “ / ”.</span>
+    </div>`;
+  h3.hidden = true;
+  head.insertBefore(ed, h3.nextSibling);
+  const input = ed.querySelector("input");
+  input.focus();
+  input.select();
+  let picked = 0;
+  ed.querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => {
+    const name = b.textContent;
+    input.value = picked === 0 ? `Richting ${name}` : `${input.value}${picked === 1 ? " - " : " / "}${name}`;
+    picked++;
+    input.focus();
+  }));
+  const close = () => { ed.remove(); h3.hidden = false; };
+  const save = (value) => {
+    value = value.trim();
+    if (!value || value === g.autoTitle) delete state.custom.titles[g.key];
+    else state.custom.titles[g.key] = value;
+    saveCustom();
+  };
+  ed.querySelector(".save").addEventListener("click", () => save(input.value));
+  ed.querySelector(".auto").addEventListener("click", () => save(""));
+  ed.querySelector(".cancel").addEventListener("click", close);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") save(input.value);
+    else if (e.key === "Escape") close();
+  });
+}
+
+function toggleDetail(tr) {
+  while (tr.nextElementSibling?.classList.contains("sub")) tr = tr.nextElementSibling;
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains("detail")) { next.remove(); return; }
+  const g = state.groups[+tr.dataset.g];
+  const r = g.rows[+tr.dataset.r];
+  const names = state.station.names;
+  const via = r.via.map((c) => names[c] || c).join(" → ");
+  const moved = state.custom.moves[r.id];
+  const options = state.groups.filter((o) => o.kind !== "intl")
+    .map((o) => `<option value="${esc(o.key)}"${o === g ? " selected" : ""}>${esc(o.title)}</option>`).join("");
+  let html = `<tr class="detail"><td colspan="7"><div class="info">
+    Volgende stop: ${esc(names[r.next] || r.next)} · via ${esc(via)} · ${r.count} vertrekken in de week</div>
+    <label class="move">Richting
+      <select>${options}<option value="__new">Nieuwe richting…</option>${moved ? '<option value="__auto">Automatisch</option>' : ""}</select>
+    </label>`;
+  for (const l of r.lines) {
+    html += `<table><tr><th colspan="2">${esc(l.dest)}${l.minor ? ' <span class="badge">randuur</span>' : ""}</th></tr>`;
+    for (const d of DAYS) {
+      if (l.times[d]) html += `<tr><th>${d}</th><td>${l.times[d].map(esc).join("  ")}</td></tr>`;
+    }
+    html += `</table>`;
+  }
+  html += `</td></tr>`;
+  tr.insertAdjacentHTML("afterend", html);
+  const sel = tr.nextElementSibling.querySelector(".move select");
+  sel.addEventListener("click", (e) => e.stopPropagation());
+  sel.addEventListener("change", () => {
+    let key = sel.value;
+    if (key === "__new") {
+      const name = prompt("Naam van de nieuwe richting:", "Richting ");
+      if (!name || !name.trim()) { sel.value = g.key; return; }
+      key = "c:" + Date.now().toString(36);
+      state.custom.created[key] = name.trim();
+    }
+    if (key === "__auto" || key === r.autoKey) delete state.custom.moves[r.id];
+    else state.custom.moves[r.id] = key;
+    // drop custom groups that became empty
+    const used = new Set([...Object.values(state.custom.moves), ...Object.values(state.custom.merges)]);
+    for (const k of Object.keys(state.custom.created)) if (!used.has(k)) delete state.custom.created[k];
+    saveCustom();
+  });
+}
+
+// ---- text export (same layout as the source tables) -----------------------
+
+const HEADERS = ["Vertrek", "Serie", "Bestemming", "Spoor", "Soort", "Vervoerder", "Opmerkingen"];
+
+// GTFS spelling -> page name on wiki.ovinnederland.nl
+const WIKI_NAMES = {
+  "Paris-Nord": "Paris Nord",
+  "London St. Pancras Int.": "London St Pancras International",
+  "Frankfurt (M) Hbf": "Frankfurt (Main) Hbf",
+  "Marne-la-Vallée-Chessy": "Marne-la-Vallée–Chessy",
+};
+const WIKI_OPERATORS = { NSI: "[[NS International|NSI]]" };
+
+// timetable year: a period starting in December belongs to the next year's timetable
+function timetableYear() {
+  const d = new Date(state.index.week_start + "T12:00:00");
+  d.setDate(d.getDate() + 30);
+  return d.getFullYear();
+}
+
+function wikiEsc(s) { return String(s).replace(/\|/g, "{{!}}").replace(/=/g, "{{=}}"); }
+function wikiLink(name) { const n = WIKI_NAMES[name] || name; return `[[${wikiEsc(n)}]]`; }
+
+const FORMATS = {
+  wiki: {
+    group(g) {
+      const rows = g.rows.map((r) => {
+        const dests = r.lines.map((l) => l.dest.split(" / ").map(wikiLink).join(" / ")).join("<br>");
+        const opm = r.lines.length > 1 && r.lines.some((l) => l.opm)
+          ? r.lines.map((l) => wikiEsc(l.opm)).join("<br>")
+          : wikiEsc(r.lines[0].opm);
+        const operator = WIKI_OPERATORS[r.vervoerder] || wikiLink(r.vervoerder);
+        return `{{PatRij1| ${r.vertrek} | ${r.serie} | ${dests} |${r.spoor}| ${wikiLink(r.soort)} | ${operator} | ${opm}}}`;
+      });
+      return [`=== ${g.title} ===`, "{{PatTop|", ...rows, "}}"].join("\n");
+    },
+    all(gs) { return [`== Dienstregeling ${timetableYear()} ==`, ...gs.map(this.group)].join("\n\n"); },
+  },
+  markdown: {
+    group(g) {
+      const cell = (s) => String(s).replace(/\|/g, "\\|");
+      const rows = g.rows.map((r) => "| " + [r.vertrek, r.serie, r.lines.map((l) => cell(l.dest)).join("<br>"), r.spoor,
+        r.soort, r.vervoerder, r.lines.map((l) => cell(l.opm)).join("<br>")].join(" | ") + " |");
+      return [`### ${g.title}`, "", "| " + HEADERS.join(" | ") + " |", "|" + HEADERS.map(() => "---").join("|") + "|", ...rows].join("\n");
+    },
+    all(gs) { return [`## Dienstregeling ${timetableYear()}`, ...gs.map(this.group)].join("\n\n"); },
+  },
+  tsv: {
+    group(g) {
+      const rows = g.rows.map((r) => [r.vertrek, r.serie, r.lines.map((l) => l.dest).join("\n"), r.spoor, r.soort,
+        r.vervoerder, r.lines.map((l) => l.opm).join("\n")].join("\t"));
+      return [g.title, HEADERS.join("\t"), ...rows].join("\n");
+    },
+    all(gs) { return gs.map(this.group).join("\n"); },
+  },
+};
+const fmt = () => FORMATS[state.opts.format] || FORMATS.wiki;
+function groupText(g) { return fmt().group(g); }
+function allText() { return fmt().all(state.groups || []); }
+
+async function copy(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const old = btn.textContent;
+    btn.textContent = "gekopieerd ✓";
+    setTimeout(() => (btn.textContent = old), 1200);
+  } catch {
+    prompt("Kopieer:", text);
+  }
+}
+
+init();
+</script>
+</body>
+</html>
