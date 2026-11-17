@@ -39,6 +39,7 @@ AGENCY_SHORT = {
     "R-net NS": "NS",
     "R-net Qbuzz": "Qbuzz",
 }
+LINE_RE = re.compile(r"[A-Z]{1,3}\d+$")  # line codes such as RS22, RE18, IC23, S32
 MAJOR_MIN_KM = 7.0  # a "via" station must be at least this far away to name a direction
 
 
@@ -113,7 +114,9 @@ def extract(gtfs_path, dates, cache_path):
     for r in read_csv(zf, "routes.txt"):
         if r["route_type"] == "2" or r["route_type"].startswith("1") and len(r["route_type"]) == 3:
             name = agencies.get(r["agency_id"], r["agency_id"])
-            routes[r["route_id"]] = AGENCY_SHORT.get(name, name)
+            # route_short_name is "Sprinter RS22" for lines that have a number, plain "Sprinter" for NS
+            last = r["route_short_name"].split()[-1] if r["route_short_name"].strip() else ""
+            routes[r["route_id"]] = (AGENCY_SHORT.get(name, name), last if LINE_RE.match(last) else "")
 
     service_days = defaultdict(list)
     for c in read_csv(zf, "calendar_dates.txt"):
@@ -127,7 +130,8 @@ def extract(gtfs_path, dates, cache_path):
                 "num": t["trip_short_name"],
                 "headsign": t["trip_headsign"],
                 "type": t["trip_long_name"],
-                "agency": routes[t["route_id"]],
+                "agency": routes[t["route_id"]][0],
+                "line": routes[t["route_id"]][1],
                 "dates": sorted(service_days[t["service_id"]]),
                 "stops": [],
             }
@@ -641,6 +645,7 @@ def patterns_for_station(ds):
             "vertrek": vertrek,
             "sort": sort,
             "serie": "/".join(str(s) for s in sorted(row["series"], key=str)),
+            "lijn": "/".join(sorted({it["trip"]["line"] for it in items} - {""})),
             "lines": lines,
             "spoor": plat_join(it["platform"] for it in items),
             "soort": row["type"],
@@ -709,7 +714,7 @@ def main():
     dates = [start + dt.timedelta(days=i) for i in range(weeks * 7)]
     print(f"Reference period {dates[0]}..{dates[-1]} ({weeks} weeks)", file=sys.stderr)
 
-    cache = f"{args.gtfs}.{start.isoformat()}.{weeks}w.pickle"
+    cache = f"{args.gtfs}.{start.isoformat()}.{weeks}w.v2.pickle"
     data = extract(args.gtfs, dates, cache)
     build(data, args.out)
 
