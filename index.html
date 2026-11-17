@@ -504,7 +504,7 @@ function toggleDetail(tr) {
 
 // ---- text export (same layout as the source tables) -----------------------
 
-// the Lijn column is only shown for tables that have line numbers (RS22, RE18, ...; NS has none)
+// the Lijn column is only shown for tables that have line numbers (IC14, S41, RS22, ...; not ICE, Nightjet, ...)
 const hasLijn = (g) => g.rows.some((r) => r.lijn);
 const headers = (g) => ["Vertrek", "Serie", ...(hasLijn(g) ? ["Lijn"] : []), "Bestemming", "Spoor", "Soort",
   "Vervoerder", "Opmerkingen"];

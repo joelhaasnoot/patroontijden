@@ -39,7 +39,7 @@ AGENCY_SHORT = {
     "R-net NS": "NS",
     "R-net Qbuzz": "Qbuzz",
 }
-LINE_RE = re.compile(r"[A-Z]{1,3}\d+$")  # line codes such as RS22, RE18, IC23, S32
+LINE_RE = re.compile(r"[A-Z]{1,3}\d+$")  # line codes such as RS22, RE18, IC14, ICD7, S41
 MAJOR_MIN_KM = 7.0  # a "via" station must be at least this far away to name a direction
 
 
@@ -114,7 +114,7 @@ def extract(gtfs_path, dates, cache_path):
     for r in read_csv(zf, "routes.txt"):
         if r["route_type"] == "2" or r["route_type"].startswith("1") and len(r["route_type"]) == 3:
             name = agencies.get(r["agency_id"], r["agency_id"])
-            # route_short_name is "Sprinter RS22" for lines that have a number, plain "Sprinter" for NS
+            # route_short_name is "Sprinter RS22", "IC14" or "S41" for lines with a number, plain "ICE" etc. otherwise
             last = r["route_short_name"].split()[-1] if r["route_short_name"].strip() else ""
             routes[r["route_id"]] = (AGENCY_SHORT.get(name, name), last if LINE_RE.match(last) else "")
 
