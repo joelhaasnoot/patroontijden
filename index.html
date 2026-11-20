@@ -99,7 +99,7 @@
   tbody tr.main:hover > td { background: var(--row-hover); }
   tbody tr.minor td { color: var(--muted); }
   td.vertrek { font-weight: 600; white-space: nowrap; }
-  td.serie, td.spoor { white-space: nowrap; }
+  td.serie, td.lijn, td.spoor { white-space: nowrap; }
   tbody tr.main:not(.last) > td.dest, tbody tr.main:not(.last) > td.opm { border-bottom: 0; padding-bottom: 1px; }
   tbody tr.sub > td { padding-top: 1px; }
   td.dest { white-space: nowrap; }
@@ -362,6 +362,7 @@ function render() {
   if (!gs.length) html += `<div class="empty">Geen vertrekken in de referentieperiode.</div>`;
   gs.forEach((g, gi) => {
     const targets = gs.filter((o) => o !== g);
+    const lijn = hasLijn(g);
     html += `<section class="dir ${g.kind}"><header><div class="head">
       <h3 class="title" data-g="${gi}" title="Klik om de naam te wijzigen">${esc(g.title)}</h3>
       <div class="dests">${esc(destSummary(g))}</div></div>
@@ -374,7 +375,7 @@ function render() {
         <button class="link copy" data-g="${gi}" type="button">kopieer</button>
       </div></header>
       <div class="scroll"><table><thead><tr>
-      <th>Vertrek</th><th>Serie</th><th>Bestemming</th><th>Spoor</th><th>Soort</th><th>Vervoerder</th><th>Opmerkingen</th>
+      <th>Vertrek</th><th>Serie</th>${lijn ? "<th>Lijn</th>" : ""}<th>Bestemming</th><th>Spoor</th><th>Soort</th><th>Vervoerder</th><th>Opmerkingen</th>
       </tr></thead><tbody>`;
     g.rows.forEach((r, ri) => {
       const minor = r.lines.every((l) => l.minor);
@@ -384,7 +385,8 @@ function render() {
         const cls = `main${minor ? " minor" : ""}${li ? " sub" : ""}${li === n - 1 ? " last" : ""}`;
         html += `<tr class="${cls}" data-g="${gi}" data-r="${ri}">` + (li ? "" : `
           <td class="vertrek"${rs}>${esc(r.vertrek)}${moved ? ' <span class="moved" title="Handmatig verplaatst">↪</span>' : ""}</td>
-          <td class="serie"${rs}>${esc(r.serie)}</td>`) + `
+          <td class="serie"${rs}>${esc(r.serie)}</td>${lijn ? `
+          <td class="lijn"${rs}>${esc(r.lijn || "")}</td>` : ""}`) + `
           <td class="dest">${esc(l.dest)}</td>` + (li ? "" : `
           <td class="spoor"${rs}>${esc(r.spoor)}</td>
           <td${rs}>${esc(r.soort)}</td>
@@ -466,7 +468,8 @@ function toggleDetail(tr) {
   const moved = state.custom.moves[r.id];
   const options = state.groups.filter((o) => o.kind !== "intl")
     .map((o) => `<option value="${esc(o.key)}"${o === g ? " selected" : ""}>${esc(o.title)}</option>`).join("");
-  let html = `<tr class="detail"><td colspan="7"><div class="info">
+  const cols = tr.closest("table").tHead.rows[0].cells.length;
+  let html = `<tr class="detail"><td colspan="${cols}"><div class="info">
     Volgende stop: ${esc(names[r.next] || r.next)} · via ${esc(via)} · ${r.count} vertrekken in de week</div>
     <label class="move">Richting
       <select>${options}<option value="__new">Nieuwe richting…</option>${moved ? '<option value="__auto">Automatisch</option>' : ""}</select>
@@ -501,7 +504,11 @@ function toggleDetail(tr) {
 
 // ---- text export (same layout as the source tables) -----------------------
 
-const HEADERS = ["Vertrek", "Serie", "Bestemming", "Spoor", "Soort", "Vervoerder", "Opmerkingen"];
+// the Lijn column is only shown for tables that have line numbers (IC14, S41, RS22, ...; not ICE, Nightjet, ...)
+const hasLijn = (g) => g.rows.some((r) => r.lijn);
+const headers = (g) => ["Vertrek", "Serie", ...(hasLijn(g) ? ["Lijn"] : []), "Bestemming", "Spoor", "Soort",
+  "Vervoerder", "Opmerkingen"];
+const lijnCell = (g, r) => (hasLijn(g) ? [r.lijn || ""] : []);
 
 // GTFS spelling -> page name on wiki.ovinnederland.nl
 const WIKI_NAMES = {
@@ -510,7 +517,7 @@ const WIKI_NAMES = {
   "Frankfurt (M) Hbf": "Frankfurt (Main) Hbf",
   "Marne-la-Vallée-Chessy": "Marne-la-Vallée–Chessy",
 };
-const WIKI_OPERATORS = { NSI: "[[NS International|NSI]]" };
+const WIKI_OPERATORS = { NSI: "[[NS International|NSI]]", Keolis: "[[Keolis Nederland|Keolis]]" };
 
 // timetable year: a period starting in December belongs to the next year's timetable
 function timetableYear() {
@@ -531,26 +538,30 @@ const FORMATS = {
           ? r.lines.map((l) => wikiEsc(l.opm)).join("<br>")
           : wikiEsc(r.lines[0].opm);
         const operator = WIKI_OPERATORS[r.vervoerder] || wikiLink(r.vervoerder);
-        return `{{PatRij1| ${r.vertrek} | ${r.serie} | ${dests} |${r.spoor}| ${wikiLink(r.soort)} | ${operator} | ${opm}}}`;
+        // PatRij3 = PatRij1 with a Lijn column, inside PatTop2
+        return hasLijn(g)
+          ? `{{PatRij3 | ${r.vertrek} | ${r.serie} | ${r.lijn || ""} | ${dests} |${r.spoor}| ${wikiLink(r.soort)} | ${operator} | ${opm}}}`
+          : `{{PatRij1| ${r.vertrek} | ${r.serie} | ${dests} |${r.spoor}| ${wikiLink(r.soort)} | ${operator} | ${opm}}}`;
       });
-      return [`=== ${g.title} ===`, "{{PatTop|", ...rows, "}}"].join("\n");
+      return [`=== ${g.title} ===`, hasLijn(g) ? "{{PatTop2 |" : "{{PatTop|", ...rows, "}}"].join("\n");
     },
     all(gs) { return [`== Dienstregeling ${timetableYear()} ==`, ...gs.map(this.group)].join("\n\n"); },
   },
   markdown: {
     group(g) {
       const cell = (s) => String(s).replace(/\|/g, "\\|");
-      const rows = g.rows.map((r) => "| " + [r.vertrek, r.serie, r.lines.map((l) => cell(l.dest)).join("<br>"), r.spoor,
-        r.soort, r.vervoerder, r.lines.map((l) => cell(l.opm)).join("<br>")].join(" | ") + " |");
-      return [`### ${g.title}`, "", "| " + HEADERS.join(" | ") + " |", "|" + HEADERS.map(() => "---").join("|") + "|", ...rows].join("\n");
+      const rows = g.rows.map((r) => "| " + [r.vertrek, r.serie, ...lijnCell(g, r), r.lines.map((l) => cell(l.dest)).join("<br>"),
+        r.spoor, r.soort, r.vervoerder, r.lines.map((l) => cell(l.opm)).join("<br>")].join(" | ") + " |");
+      const hs = headers(g);
+      return [`### ${g.title}`, "", "| " + hs.join(" | ") + " |", "|" + hs.map(() => "---").join("|") + "|", ...rows].join("\n");
     },
     all(gs) { return [`## Dienstregeling ${timetableYear()}`, ...gs.map(this.group)].join("\n\n"); },
   },
   tsv: {
     group(g) {
-      const rows = g.rows.map((r) => [r.vertrek, r.serie, r.lines.map((l) => l.dest).join("\n"), r.spoor, r.soort,
-        r.vervoerder, r.lines.map((l) => l.opm).join("\n")].join("\t"));
-      return [g.title, HEADERS.join("\t"), ...rows].join("\n");
+      const rows = g.rows.map((r) => [r.vertrek, r.serie, ...lijnCell(g, r), r.lines.map((l) => l.dest).join("\n"), r.spoor,
+        r.soort, r.vervoerder, r.lines.map((l) => l.opm).join("\n")].join("\t"));
+      return [g.title, headers(g).join("\t"), ...rows].join("\n");
     },
     all(gs) { return gs.map(this.group).join("\n"); },
   },

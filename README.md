@@ -2,6 +2,8 @@
 
 Departure-pattern tables ("Vertrek / Serie / Bestemming / Spoor / Soort / Vervoerder / Opmerkingen")
 per Dutch railway station, generated from the OVapi GTFS feed.
+Tables with line numbers (IC14, S41, RS22, …; NS has them from the 2027 timetable) get an extra *Lijn* column
+(wiki export: `PatTop2`/`PatRij3`); tables with only international trains keep the old layout.
 
 ```bash
 python3 build.py --download                 # fetch gtfs-nl.zip; new timetable if the feed has it, else current
